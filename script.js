@@ -118,6 +118,227 @@ function pathSegments(path) {
 }
 function totalLen(path) { return pathSegments(path).reduce((s, seg) => s + seg.edge.length, 0); }
 
+// ---------- collision avoidance ----------
+let globalPlaced = [];
+function isValidPosition(x, y, roadDist=48, nodeDist=52) {
+  for (const edge of state.edges) {
+    for (let t = 0; t <= 1; t += 0.07) { const pt = bpt(edge, t); if (Math.hypot(pt.x - x, pt.y - y) < roadDist) return false; }
+    if (Math.hypot(edge.a.x - x, edge.a.y - y) < roadDist) return false;
+    if (Math.hypot(edge.b.x - x, edge.b.y - y) < roadDist) return false;
+  }
+  for (const node of state.nodes) if (Math.hypot(node.x - x, node.y - y) < nodeDist) return false;
+  for (let [px, py] of globalPlaced) if (Math.hypot(px-x, py-y) < 44) return false;
+  return true;
+}
+
+// colorful buildings & trees
+function drawTree(g, x, y) {
+  const hue = 110 + Math.random() * 25;
+  const grp = ns('g');
+  grp.appendChild(ns('rect', { x: x-5, y: y-14, width: 10, height: 18, fill: '#8B5A2B', rx: 2 }));
+  grp.appendChild(ns('circle', { cx: x, cy: y-18, r: 20, fill: `hsl(${hue}, 70%, 48%)`, stroke: '#2c6e2c', 'stroke-width': 1.5 }));
+  grp.appendChild(ns('circle', { cx: x-4, cy: y-28, r: 15, fill: `hsl(${hue+8}, 75%, 55%)` }));
+  grp.appendChild(ns('circle', { cx: x+2, cy: y-38, r: 11, fill: `hsl(${hue+5}, 80%, 48%)` }));
+  g.appendChild(grp);
+}
+function drawHouse(g, x, y, variant = null) {
+  const grp = ns('g');
+  const w = 46, h = 38;
+  const wallColor = variant === 'blue' ? '#b7dbe8' : (variant === 'peach' ? '#ffddb0' : '#fcf3cf');
+  const roofColor = variant === 'blue' ? '#9c6e3e' : '#bc6f2c';
+  grp.appendChild(ns('rect', { x: x-w/2, y: y-h, width: w, height: h, fill: wallColor, stroke: '#bc8f6a', rx: 5, 'stroke-width': 2 }));
+  grp.appendChild(ns('polygon', { points: `${x-w/2-4},${y-h} ${x+w/2+4},${y-h} ${x},${y-h-20}`, fill: roofColor, stroke: '#784e2a', 'stroke-width': 1.5 }));
+  grp.appendChild(ns('rect', { x: x-8, y: y-22, width: 16, height: 22, fill: '#9c7a4a', rx: 2 }));
+  grp.appendChild(ns('rect', { x: x-w/2+8, y: y-h+10, width: 10, height: 10, fill: '#ffe69e', stroke: '#c48a4a' }));
+  grp.appendChild(ns('rect', { x: x+w/2-18, y: y-h+10, width: 10, height: 10, fill: '#ffe69e', stroke: '#c48a4a' }));
+  g.appendChild(grp);
+}
+function drawOffice(g, x, y) {
+  const grp = ns('g');
+  const w = 48, h = 62;
+  grp.appendChild(ns('rect', { x: x-w/2, y: y-h, width: w, height: h, fill: '#b7c9e2', stroke: '#7894b0', rx: 4, 'stroke-width': 2.5 }));
+  for (let i=0; i<4; i++) for (let j=0; j<2; j++) {
+    const wx = x - w/2 + 12 + j*24, wy = y-h + 12 + i*14;
+    grp.appendChild(ns('rect', { x: wx-5, y: wy, width: 10, height: 9, fill: '#ffedb0', rx: 2, stroke: '#a0b4c8' }));
+  }
+  grp.appendChild(ns('rect', { x: x-6, y: y-h-10, width: 12, height: 12, fill: '#6c8eb0', rx: 2 }));
+  g.appendChild(grp);
+}
+function drawFlowerGarden(g, cx, cy) {
+  const grp = ns('g');
+  grp.appendChild(ns('circle', { cx: cx, cy: cy, r: 24, fill: '#b3e0a0', opacity: 0.8 }));
+  for (let i=0; i<12; i++) {
+    const ang = (i/12)*Math.PI*2;
+    const r = 15;
+    const fx = cx + Math.cos(ang)*r, fy = cy + Math.sin(ang)*r;
+    grp.appendChild(ns('circle', { cx: fx, cy: fy, r: 6, fill: `hsl(${30+i*25}, 80%, 65%)`, stroke: '#f0b27a' }));
+  }
+  grp.appendChild(ns('circle', { cx: cx, cy: cy, r: 9, fill: '#f7d44a' }));
+  g.appendChild(grp);
+}
+
+function renderCityElements() {
+  const g = ns('g', { id: 'city' });
+  globalPlaced = [];
+  let seed = 231;
+  const srng = () => { seed = (seed * 1103515245 + 12345) & 0x7fffffff; return seed / 0x7fffffff; };
+
+  for (let r = 0; r < ROWS-1; r++) {
+    for (let c = 0; c < COLS-1; c++) {
+      const n00 = state.nodes[r*COLS + c];
+      const n10 = state.nodes[r*COLS + c+1];
+      const n01 = state.nodes[(r+1)*COLS + c];
+      if (!n00 || !n10 || !n01) continue;
+      const left = Math.min(n00.x, n10.x, n01.x) + 55;
+      const right = Math.max(n00.x, n10.x, n01.x) - 55;
+      const top = Math.min(n00.y, n10.y, n01.y) + 55;
+      const bottom = Math.max(n00.y, n10.y, n01.y) - 55;
+      if (left >= right || top >= bottom) continue;
+      const cx = (left+right)/2, cy = (top+bottom)/2;
+      const wBlok = right-left, hBlok = bottom-top;
+
+      // Rumah lebih padat di pinggir jalan
+      const houseCountSide = Math.floor(srng() * 4) + 2;
+      for (let i=1; i<=houseCountSide; i++) {
+        let y = top + i * (hBlok / (houseCountSide+1));
+        if (isValidPosition(left-32, y, 48, 52)) { drawHouse(g, left-32, y, 'peach'); globalPlaced.push([left-32, y]); }
+        if (isValidPosition(right+32, y, 48, 52)) { drawHouse(g, right+32, y, 'blue'); globalPlaced.push([right+32, y]); }
+      }
+      const horHouse = Math.floor(srng() * 4) + 2;
+      for (let i=1; i<=horHouse; i++) {
+        let x = left + i * (wBlok / (horHouse+1));
+        if (isValidPosition(x, top-32, 48, 52)) { drawHouse(g, x, top-32); globalPlaced.push([x, top-32]); }
+        if (isValidPosition(x, bottom+32, 48, 52)) { drawHouse(g, x, bottom+32, 'peach'); globalPlaced.push([x, bottom+32]); }
+      }
+
+      // deretan gedung dan taman warna-warni
+      if (srng() > 0.45 && wBlok > 90) {
+        const off = [28, 54];
+        for (let o of off) {
+          if (isValidPosition(cx - o, cy, 50, 54)) { drawOffice(g, cx - o, cy); globalPlaced.push([cx-o, cy]); }
+          if (isValidPosition(cx + o, cy, 50, 54)) { drawOffice(g, cx + o, cy); globalPlaced.push([cx+o, cy]); }
+        }
+      }
+
+      // taman bunga / pohon ekstra + vibrant
+      if (srng() > 0.3) {
+        const gardenX = cx + (srng() - 0.5) * wBlok * 0.4;
+        const gardenY = cy + (srng() - 0.5) * hBlok * 0.4;
+        if (isValidPosition(gardenX, gardenY, 50, 55)) {
+          drawFlowerGarden(g, gardenX, gardenY);
+          globalPlaced.push([gardenX, gardenY]);
+        }
+      }
+
+      // banyak pohon rindang di sekitar blok
+      const treeCluster = 3 + Math.floor(srng() * 4);
+      for (let t=0; t<treeCluster; t++) {
+        let side = Math.floor(srng() * 4);
+        let px, py;
+        if (side === 0)      { px = left - 40 - srng()*15; py = top + srng() * hBlok; }
+        else if (side === 1) { px = right + 40 + srng()*15; py = top + srng() * hBlok; }
+        else if (side === 2) { px = left + srng() * wBlok; py = top - 45 - srng()*15; }
+        else                 { px = left + srng() * wBlok; py = bottom + 45 + srng()*15; }
+        if (isValidPosition(px, py, 46, 52)) { drawTree(g, px, py); globalPlaced.push([px, py]); }
+      }
+      // pohon acak di dalam blok
+      if (wBlok > 70 && hBlok > 70) {
+        for (let i=0; i<3; i++) {
+          let px = left + srng() * wBlok;
+          let py = top + srng() * hBlok;
+          if (isValidPosition(px, py, 48, 52)) { drawTree(g, px, py); globalPlaced.push([px, py]); }
+        }
+      }
+    }
+  }
+  // tambahkan pohon di area sekitar node secara merata
+  for (let node of state.nodes) {
+    for (let i=0; i<2; i++) {
+      let angle = Math.random() * 2*Math.PI;
+      let rad = 45 + Math.random() * 30;
+      let tx = node.x + Math.cos(angle) * rad;
+      let ty = node.y + Math.sin(angle) * rad;
+      if (isValidPosition(tx, ty, 44, 48)) { drawTree(g, tx, ty); globalPlaced.push([tx, ty]); }
+    }
+  }
+  svg.appendChild(g);
+}
+
+// ========== RENDER ==========
+function renderRoads() {
+  const g = ns('g', { id: 'roads' });
+  state.edges.forEach(e => {
+    const d = bpath(e);
+    g.appendChild(ns('path', { d, fill: 'none', stroke: '#cbbf7a', 'stroke-width': 48, 'stroke-linecap': 'round' }));
+    g.appendChild(ns('path', { d, fill: 'none', stroke: '#f8e8b0', 'stroke-width': 42, 'stroke-linecap': 'round' }));
+    g.appendChild(ns('path', { d, fill: 'none', stroke: '#eed483', 'stroke-width': 36, 'stroke-linecap': 'round' }));
+    g.appendChild(ns('path', { d, fill: 'none', stroke: '#ffec9e', 'stroke-width': 28, 'stroke-linecap': 'round' }));
+    g.appendChild(ns('path', { d, fill: 'none', stroke: '#f5bc70', 'stroke-width': 4.5, 'stroke-dasharray': '28 22', opacity: 0.9 }));
+  });
+  svg.appendChild(g);
+}
+
+function renderNodes() {
+  const g = ns('g', { id: 'nodes' });
+  state.nodes.forEach(n => {
+    g.appendChild(ns('circle', { cx: n.x, cy: n.y, r: 20, fill: '#fff3cf', stroke: '#f3b33d', 'stroke-width': 3 }));
+    g.appendChild(ns('circle', { cx: n.x, cy: n.y, r: 11, fill: '#ffdd99' }));
+    g.appendChild(ns('circle', { cx: n.x, cy: n.y, r: 5, fill: '#d4912e' }));
+    const hit = ns('circle', { cx: n.x, cy: n.y, r: 32, fill: 'transparent', 'data-id': n.id, style: 'cursor:pointer' });
+    hit.addEventListener('click', () => nodeClick(n.id));
+    g.appendChild(hit);
+  });
+  svg.appendChild(g);
+}
+
+function renderHighlight() {
+  let g = document.getElementById('routeHL');
+  if (g) while (g.firstChild) g.removeChild(g.firstChild);
+  else { g = ns('g', { id: 'routeHL' }); svg.appendChild(g); }
+  if (!state.path.length) return;
+  pathSegments(state.path).forEach(({ edge: e, fwd }) => {
+    const ed = fwd ? e : { a: e.b, b: e.a, cx: e.cx, cy: e.cy };
+    const d = bpath(ed);
+    g.appendChild(ns('path', { d, fill: 'none', stroke: '#ff47c2', 'stroke-width': 20, 'stroke-linecap': 'round', opacity: 0.4 }));
+    g.appendChild(ns('path', { d, fill: 'none', stroke: '#3b82f6', 'stroke-width': 7, 'stroke-dasharray': '12 10', 'stroke-linecap': 'round' }));
+  });
+}
+
+function renderFlags() {
+  let g = document.getElementById('flags');
+  if (!g) { g = ns('g', { id: 'flags' }); svg.appendChild(g); }
+  else while (g.firstChild) g.removeChild(g.firstChild);
+  if (state.start !== null) drawFlag(g, state.nodes[state.start], '#e63946', 'S');
+  if (state.goal !== null) drawFlag(g, state.nodes[state.goal], '#2ecc71', 'G');
+}
+function drawFlag(p, n, color, label) {
+  const { x, y } = n;
+  p.appendChild(ns('circle', { cx: x, cy: y, r: 27, fill: color, opacity: 0.2 }));
+  p.appendChild(ns('line', { x1: x, y1: y-8, x2: x, y2: y-82, stroke: color, 'stroke-width': 5 }));
+  p.appendChild(ns('polygon', { points: `${x},${y-80} ${x+42},${y-60} ${x},${y-42}`, fill: color, opacity: 0.95 }));
+  p.appendChild(ns('text', { x: x+18, y: y-61, fill: 'white', 'font-size': 17, 'font-weight': 'bold', 'text-anchor': 'middle' }, label));
+}
+
+function render() {
+  while (svg.firstChild) svg.removeChild(svg.firstChild);
+  svg.appendChild(ns('rect', { x: 0, y: 0, width: W, height: H, fill: '#c7e6c7' }));
+  const defs = ns('defs', {});
+  const pat = ns('pattern', { id: 'grassGrid', width: 70, height: 70, patternUnits: 'userSpaceOnUse' });
+  pat.appendChild(ns('line', { x1: 0, y1: 0, x2: 70, y2: 0, stroke: '#b2d8a8', 'stroke-width': 1 }));
+  pat.appendChild(ns('line', { x1: 0, y1: 0, x2: 0, y2: 70, stroke: '#b2d8a8', 'stroke-width': 1 }));
+  defs.appendChild(pat);
+  svg.appendChild(defs);
+  svg.appendChild(ns('rect', { x: 0, y: 0, width: W, height: H, fill: 'url(#grassGrid)' }));
+  renderCityElements();
+  renderRoads();
+  svg.appendChild(ns('g', { id: 'routeHL' }));
+  renderNodes();
+  svg.appendChild(ns('g', { id: 'flags' }));
+  svg.appendChild(ns('g', { id: 'vehicle' }));
+  renderHighlight();
+  renderFlags();
+}
+
 // ========== ANIMASI KENDARAAN ==========
 const SPEED = { car: 440, moto: 580, bike: 260 };
 let pathLen = 0;
@@ -215,80 +436,6 @@ function drawBike(g) {
   g.appendChild(ns('circle', { cx: 0, cy: -26, r: 9, fill: '#e67e22' }));
 }
 
-// ========== RENDER & UI ==========
-function renderRoads() {
-  const g = ns('g', { id: 'roads' });
-  state.edges.forEach(e => {
-    const d = bpath(e);
-    g.appendChild(ns('path', { d, fill: 'none', stroke: '#cbbf7a', 'stroke-width': 48, 'stroke-linecap': 'round' }));
-    g.appendChild(ns('path', { d, fill: 'none', stroke: '#f8e8b0', 'stroke-width': 42, 'stroke-linecap': 'round' }));
-    g.appendChild(ns('path', { d, fill: 'none', stroke: '#eed483', 'stroke-width': 36, 'stroke-linecap': 'round' }));
-    g.appendChild(ns('path', { d, fill: 'none', stroke: '#ffec9e', 'stroke-width': 28, 'stroke-linecap': 'round' }));
-    g.appendChild(ns('path', { d, fill: 'none', stroke: '#f5bc70', 'stroke-width': 4.5, 'stroke-dasharray': '28 22', opacity: 0.9 }));
-  });
-  svg.appendChild(g);
-}
-
-function renderNodes() {
-  const g = ns('g', { id: 'nodes' });
-  state.nodes.forEach(n => {
-    g.appendChild(ns('circle', { cx: n.x, cy: n.y, r: 20, fill: '#fff3cf', stroke: '#f3b33d', 'stroke-width': 3 }));
-    g.appendChild(ns('circle', { cx: n.x, cy: n.y, r: 11, fill: '#ffdd99' }));
-    g.appendChild(ns('circle', { cx: n.x, cy: n.y, r: 5, fill: '#d4912e' }));
-    const hit = ns('circle', { cx: n.x, cy: n.y, r: 32, fill: 'transparent', 'data-id': n.id, style: 'cursor:pointer' });
-    hit.addEventListener('click', () => nodeClick(n.id));
-    g.appendChild(hit);
-  });
-  svg.appendChild(g);
-}
-
-function renderHighlight() {
-  let g = document.getElementById('routeHL');
-  if (g) while (g.firstChild) g.removeChild(g.firstChild);
-  else { g = ns('g', { id: 'routeHL' }); svg.appendChild(g); }
-  if (!state.path.length) return;
-  pathSegments(state.path).forEach(({ edge: e, fwd }) => {
-    const ed = fwd ? e : { a: e.b, b: e.a, cx: e.cx, cy: e.cy };
-    const d = bpath(ed);
-    g.appendChild(ns('path', { d, fill: 'none', stroke: '#ff47c2', 'stroke-width': 20, 'stroke-linecap': 'round', opacity: 0.4 }));
-    g.appendChild(ns('path', { d, fill: 'none', stroke: '#3b82f6', 'stroke-width': 7, 'stroke-dasharray': '12 10', 'stroke-linecap': 'round' }));
-  });
-}
-
-function renderFlags() {
-  let g = document.getElementById('flags');
-  if (!g) { g = ns('g', { id: 'flags' }); svg.appendChild(g); }
-  else while (g.firstChild) g.removeChild(g.firstChild);
-  if (state.start !== null) drawFlag(g, state.nodes[state.start], '#e63946', 'S');
-  if (state.goal !== null) drawFlag(g, state.nodes[state.goal], '#2ecc71', 'G');
-}
-function drawFlag(p, n, color, label) {
-  const { x, y } = n;
-  p.appendChild(ns('circle', { cx: x, cy: y, r: 27, fill: color, opacity: 0.2 }));
-  p.appendChild(ns('line', { x1: x, y1: y-8, x2: x, y2: y-82, stroke: color, 'stroke-width': 5 }));
-  p.appendChild(ns('polygon', { points: `${x},${y-80} ${x+42},${y-60} ${x},${y-42}`, fill: color, opacity: 0.95 }));
-  p.appendChild(ns('text', { x: x+18, y: y-61, fill: 'white', 'font-size': 17, 'font-weight': 'bold', 'text-anchor': 'middle' }, label));
-}
-
-function render() {
-  while (svg.firstChild) svg.removeChild(svg.firstChild);
-  svg.appendChild(ns('rect', { x: 0, y: 0, width: W, height: H, fill: '#c7e6c7' }));
-  const defs = ns('defs', {});
-  const pat = ns('pattern', { id: 'grassGrid', width: 70, height: 70, patternUnits: 'userSpaceOnUse' });
-  pat.appendChild(ns('line', { x1: 0, y1: 0, x2: 70, y2: 0, stroke: '#b2d8a8', 'stroke-width': 1 }));
-  pat.appendChild(ns('line', { x1: 0, y1: 0, x2: 0, y2: 70, stroke: '#b2d8a8', 'stroke-width': 1 }));
-  defs.appendChild(pat);
-  svg.appendChild(defs);
-  svg.appendChild(ns('rect', { x: 0, y: 0, width: W, height: H, fill: 'url(#grassGrid)' }));
-  renderRoads();
-  svg.appendChild(ns('g', { id: 'routeHL' }));
-  renderNodes();
-  svg.appendChild(ns('g', { id: 'flags' }));
-  svg.appendChild(ns('g', { id: 'vehicle' }));
-  renderHighlight();
-  renderFlags();
-}
-
 function nodeClick(id) {
   if (state.mode === 'start') {
     state.start = id; state.path = [];
@@ -350,12 +497,27 @@ function generateMap() {
   ensureConnected();
   ensureNoDeadEnds();
   render();
-  setStatus('Peta siap!','ok');
+  setStatus('🌳 Kota ramai + pepohonan rimbun!','ok');
   syncBtns();
 }
 
 // Event listeners
 document.getElementById('btnGen').addEventListener('click', generateMap);
+document.getElementById('btnRandPos').addEventListener('click', () => {
+  if (state.nodes.length < 2) return;
+  let s, g;
+  do {
+    s = Math.floor(Math.random() * state.nodes.length);
+    g = Math.floor(Math.random() * state.nodes.length);
+  } while (s === g);
+  stopAnim();
+  state.start = s; state.goal = g;
+  state.path = dijkstra(s, g);
+  if (state.path.length > 1) pathLen = totalLen(state.path);
+  renderFlags(); renderHighlight();
+  setStatus(state.path.length > 1 ? `🎲 Acak #${s} → #${g}` : 'Tidak terhubung', state.path.length > 1 ? 'ok' : 'err');
+  syncBtns();
+});
 document.getElementById('btnModeStart').addEventListener('click', () => {
   state.mode = 'start';
   setStatus('🔴 Klik node untuk START','');

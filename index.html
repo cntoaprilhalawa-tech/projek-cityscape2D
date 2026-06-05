@@ -1,1 +1,52 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>CityScape 2D – Vibrant Metropolis</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="toolbar">
+  <span class="logo">🏙️ CITY<span>SCAPE 2D</span></span>
+  <div class="sep"></div>
+  <button class="btn primary" id="btnGen">🎲 Acak Peta + Kota</button>
+  <div class="sep"></div>
+  <select class="btn" id="selVehicle">
+    <option value="car">🚗 Mobil Sport</option>
+    <option value="moto">🏍️ Motor Keren</option>
+    <option value="bike">🚲 Sepeda Santai</option>
+  </select>
+  <button class="btn" id="btnRandPos">✨ Acak Start/Goal</button>
+  <div class="sep"></div>
+  <button class="btn" id="btnModeStart">🔴 Set Start</button>
+  <button class="btn" id="btnModeGoal">🟢 Set Goal</button>
+  <div class="sep"></div>
+  <button class="btn success" id="btnPlay" disabled>▶ Mulai Perjalanan</button>
+  <button class="btn" id="btnStop" disabled>🔄 Reset Animasi</button>
+  <span class="pill" id="pill">🎨 siap</span>
+</div>
 
+<div id="viewport">
+  <div id="world">
+    <svg id="mapSVG" xmlns="http://www.w3.org/2000/svg"></svg>
+  </div>
+</div>
+
+<div class="zoom-wrap">
+  <button class="btn" id="zIn">➕</button>
+  <span class="zoom-badge" id="zLabel">100%</span>
+  <button class="btn" id="zOut">➖</button>
+</div>
+
+<div class="legend">
+  <b>🌆 Metropolis Interaktif</b><br>
+  🔴 START &nbsp; 🟢 GOAL &nbsp; 🔵 Rute Terpendek<br>
+  🏠🏢🏡 Lebih banyak rumah & rimbun pohon!<br>
+  🎯 Klik node → set start/goal<br>
+  🧭 Drag / Scroll = geser peta, Ctrl+Scroll = zoom
+</div>
+
+<script src="script.js"></script>
+</body>
+</html>

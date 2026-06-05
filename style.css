@@ -1,1 +1,210 @@
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+  user-select: none;
+}
 
+:root {
+  --bg-sky: #c2e0f0;
+  --panel: #fef7e0;
+  --card: #fff6e8;
+  --border: #f3d9a4;
+  --accent: #ff8c42;
+  --accent2: #2ecc71;
+  --danger: #e74c3c;
+  --info: #3498db;
+  --text: #2c3e2f;
+  --muted: #5a7d5a;
+  --road-light: #f5e6b0;
+  --road-dark: #e2c78c;
+}
+
+body {
+  background: var(--bg-sky);
+  color: var(--text);
+  font-family: 'Segoe UI', 'Quicksand', system-ui, -apple-system, 'JetBrains Mono', monospace;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.toolbar {
+  background: var(--panel);
+  backdrop-filter: blur(2px);
+  border-bottom: 3px solid #ffcd94;
+  padding: 10px 20px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-shrink: 0;
+  flex-wrap: wrap;
+  z-index: 100;
+  box-shadow: 0 6px 14px rgba(0, 0, 0, 0.08);
+}
+
+.logo {
+  font-size: 20px;
+  font-weight: 800;
+  background: linear-gradient(135deg, #ff8c42, #f4b942);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  text-shadow: 2px 2px 4px rgba(0,0,0,0.05);
+  letter-spacing: 1px;
+}
+.logo span {
+  color: #5a7d5a;
+  background: none;
+  -webkit-background-clip: unset;
+  background-clip: unset;
+  font-weight: 600;
+  opacity: 0.8;
+}
+
+.sep {
+  width: 2px;
+  height: 32px;
+  background: radial-gradient(circle, #ffcd94, #f5bc70);
+  border-radius: 4px;
+}
+
+.btn {
+  padding: 8px 18px;
+  border: none;
+  border-radius: 40px;
+  background: var(--card);
+  color: var(--text);
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+  border: 1px solid var(--border);
+}
+
+.btn:hover {
+  transform: translateY(-2px);
+  background: #fff1df;
+  border-color: #ffbc6e;
+  box-shadow: 0 6px 12px rgba(0,0,0,0.1);
+}
+
+.btn.primary {
+  background: linear-gradient(95deg, #ff9a3c, #ff6f20);
+  border: none;
+  color: white;
+  font-weight: bold;
+  text-shadow: 0 1px 0 rgba(0,0,0,0.1);
+}
+
+.btn.success {
+  background: linear-gradient(95deg, #2ecc71, #27ae60);
+  border: none;
+  color: white;
+}
+
+select.btn {
+  background-color: #fff5ea;
+  appearance: none;
+  padding-right: 32px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='8'%3E%3Cpath d='M0 0l7 8 7-8z' fill='%23ff8c42'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 14px center;
+}
+
+.pill {
+  margin-left: auto;
+  padding: 6px 18px;
+  border-radius: 60px;
+  background: #eef3e6;
+  border: 1px solid #cae0b2;
+  font-size: 11px;
+  font-weight: bold;
+  color: var(--muted);
+  transition: 0.1s;
+}
+.pill.ok  { background: #dff0d6; color: #2e7d32; border-color: #8bc34a; }
+.pill.run { background: #ffe0b3; color: #e67e22; border-color: #ffb347; }
+.pill.err { background: #ffe0e0; color: #c0392b; border-color: #e74c3c; }
+
+#viewport {
+  flex: 1;
+  overflow: auto;
+  background: #b0cfc0;
+  cursor: grab;
+  position: relative;
+  border-radius: 0;
+}
+#viewport:active { cursor: grabbing; }
+
+#world {
+  width: 2600px;
+  height: 2600px;
+  position: relative;
+  transform-origin: top left;
+  transition: transform 0.08s ease-out;
+}
+
+#mapSVG {
+  width: 100%;
+  height: 100%;
+  display: block;
+  position: absolute;
+  top: 0;
+  left: 0;
+  filter: drop-shadow(0 4px 8px rgba(0,0,0,0.1));
+}
+
+.zoom-wrap {
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  z-index: 300;
+  background: rgba(255,252,235,0.7);
+  backdrop-filter: blur(12px);
+  padding: 6px;
+  border-radius: 48px;
+  border: 1px solid #ffe3b3;
+}
+.zoom-wrap .btn {
+  width: 44px;
+  height: 44px;
+  font-size: 24px;
+  padding: 0;
+  border-radius: 50%;
+  background: white;
+  font-weight: bold;
+}
+.zoom-badge {
+  text-align: center;
+  font-size: 11px;
+  font-weight: bold;
+  background: #2c3e2f;
+  color: #fff1cf;
+  padding: 4px 8px;
+  border-radius: 30px;
+}
+
+.legend {
+  position: fixed;
+  bottom: 20px;
+  left: 20px;
+  background: rgba(255, 251, 240, 0.96);
+  backdrop-filter: blur(8px);
+  border-radius: 24px;
+  padding: 14px 20px;
+  font-size: 11px;
+  font-weight: 500;
+  z-index: 200;
+  border-left: 6px solid #ff9f4a;
+  box-shadow: 0 8px 20px rgba(0,0,0,0.12);
+  color: #2d4a2b;
+  line-height: 1.7;
+}
+.legend b { color: #c96f0e; }
